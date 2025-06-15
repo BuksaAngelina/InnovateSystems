@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Kryvyi Rih City Council AR Scene with Three.js and MindAR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #ar-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.141.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.141.0/examples/jsm/",
+        "mind-ar": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="ar-container"></div>
+  <script type="module">
+    import * as THREE from 'three';
+    import { MindARThree } from 'mind-ar';
+
+    // Ініціалізація MindAR
+    const mindarThree = new MindARThree({
+      container: document.getElementById('ar-container'),
+      imageTargetSrc: '../assets/targets.mind',
+    });
+
+    const { renderer, scene, camera } = mindarThree;
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const anchor = mindarThree.addAnchor(0);
+
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.setCrossOrigin('anonymous');
+
+    // Основна будівля
+    const buildingGeometry = new THREE.BoxGeometry(2, 1, 1);
+    let building;
+    textureLoader.load(
+      'https://raw.githubusercontent.com/aframevr/sample-assets/master/assets/images/bricks/brick_bump.jpg',
+      (texture) => {
+        texture.colorSpace = 'srgb';
+        const buildingMaterial = new THREE.MeshStandardMaterial({
+          color: 0xaaaaaa,
+          bumpMap: texture,
+          bumpScale: 0.1,
+          roughness: 0.7,
+          metalness: 0.2
+        });
+        building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+        building.position.set(0, 0.5, 0);
+        anchor.group.add(building);
+        console.log('Building texture loaded successfully');
+      },
+      undefined,
+      (error) => {
+        console.error('Error loading building texture:', error);
+      }
+    );
+
+    // Вежа
+    const towerGeometry = new THREE.BoxGeometry(0.4, 1.5, 0.4);
+    let tower;
+    textureLoader.load(
+      'https://raw.githubusercontent.com/aframevr/sample-assets/master/assets/images/bricks/brick_bump.jpg',
+      (texture) => {
+        texture.colorSpace = 'srgb';
+        const towerMaterial = new THREE.MeshStandardMaterial({
+          color: 0xaaaaaa,
+          bumpMap: texture,
+          bumpScale: 0.1,
+          roughness: 0.7,
+          metalness: 0.2
+        });
+        tower = new THREE.Mesh(towerGeometry, towerMaterial);
+        tower.position.set(0.8, 1, 0);
+        anchor.group.add(tower);
+        console.log('Tower texture loaded successfully');
+      },
+      undefined,
+      (error) => {
+        console.error('Error loading tower texture:', error);
+      }
+    );
+
+    // Вхід
+    const entranceGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.1);
+    const entranceMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+    const entrance = new THREE.Mesh(entranceGeometry, entranceMaterial);
+    entrance.position.set(0, 0.25, 0.55);
+    anchor.group.add(entrance);
+
+    // Освітлення
+    const pointLight = new THREE.PointLight(0xffffff, 1.5, 100);
+    pointLight.position.set(5, 5, 5);
+    anchor.group.add(pointLight);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    // Анімація камери
+    const clock = new THREE.Clock();
+    let cameraAnimationStart = null;
+    const animate = () => {
+      const delta = clock.getDelta();
+      if (cameraAnimationStart === null) {
+        cameraAnimationStart = clock.getElapsedTime();
+      }
+      const elapsed = clock.getElapsedTime() - cameraAnimationStart;
+      const animationDuration = 5; // 5 секунд
+      if (elapsed < animationDuration) {
+        const t = elapsed / animationDuration;
+        camera.position.z = 2 + (5 - 2) * t; // Від 2 до 5 по осі Z
+        camera.position.y = 1.5; // Постійна висота
+      } else {
+        camera.position.set(0, 1.5, 5); // Фіксована кінцева позиція
+      }
+      renderer.render(scene, camera);
+    };
+    renderer.setAnimationLoop(animate);
+
+    // Запуск MindAR
+    mindarThree.start().then(() => {
+      console.log('MindAR started');
+      camera.position.set(0, 1.5, 2); // Початкова позиція камери
+    });
+
+    // Обробка зміни розміру вікна
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
