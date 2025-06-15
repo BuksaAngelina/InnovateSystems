@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Kryvyi Rih City Council WebXR Scene</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #ar-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+    #ar-button {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.141.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.141.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="ar-container"></div>
+  <script type="module">
+    import * as THREE from 'three';
+    import { ARButton } from 'three/addons/webxr/ARButton.js';
+
+    // Initialize renderer with WebXR support
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
+    document.getElementById('ar-container').appendChild(renderer.domElement);
+
+    // Add AR button
+    document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+
+    // Scene and camera
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+    // Texture Loader
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.setCrossOrigin('anonymous');
+
+    // Group for building components
+    const group = new THREE.Group();
+
+    // Main building
+    const buildingGeometry = new THREE.BoxGeometry(2, 1, 1);
+    let building;
+    textureLoader.load(
+      '../assets/brick_diffuse.jpg',
+      (diffuseTexture) => {
+        diffuseTexture.colorSpace = 'srgb';
+        textureLoader.load(
+          '../assets/brick_bump.jpg',
+          (bumpTexture) => {
+            bumpTexture.colorSpace = 'srgb';
+            const buildingMaterial = new THREE.MeshStandardMaterial({
+              map: diffuseTexture,
+              bumpMap: bumpTexture,
+              bumpScale: 0.1,
+              roughness: 0.7,
+              metalness: 0.2
+            });
+            building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+            building.position.set(0, 0.5, 0);
+            group.add(building);
+            console.log('Building diffuse and bump textures loaded successfully');
+          },
+          undefined,
+          (error) => {
+            console.error('Error loading building bump texture:', error);
+          }
+        );
+      },
+      undefined,
+      (error) => {
+        console.error('Error loading building diffuse texture:', error);
+      }
+    );
+
+    // Tower
+    const towerGeometry = new THREE.BoxGeometry(0.4, 1.5, 0.4);
+    let tower;
+    textureLoader.load(
+      '../assets/brick_diffuse.jpg',
+      (diffuseTexture) => {
+        diffuseTexture.colorSpace = 'srgb';
+        textureLoader.load(
+          '../assets/brick_bump.jpg',
+          (bumpTexture) => {
+            bumpTexture.colorSpace = 'srgb';
+            const towerMaterial = new THREE.MeshStandardMaterial({
+              map: diffuseTexture,
+              bumpMap: bumpTexture,
+              bumpScale: 0.1,
+              roughness: 0.7,
+              metalness: 0.2
+            });
+            tower = new THREE.Mesh(towerGeometry, towerMaterial);
+            tower.position.set(0.8, 1, 0);
+            group.add(tower);
+            console.log('Tower diffuse and bump textures loaded successfully');
+          },
+          undefined,
+          (error) => {
+            console.error('Error loading tower bump texture:', error);
+          }
+        );
+      },
+      undefined,
+      (error) => {
+        console.error('Error loading tower diffuse texture:', error);
+      }
+    );
+
+    // Entrance
+    const entranceGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.1);
+    const entranceMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+    const entrance = new THREE.Mesh(entranceGeometry, entranceMaterial);
+    entrance.position.set(0, 0.25, 0.55);
+    group.add(entrance);
+
+    // Lighting
+    const pointLight = new THREE.PointLight(0xffffff, 1.5, 10);
+    pointLight.position.set(5, 5, 5);
+    scene.add(pointLight);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    // Hit-test setup for WebXR
+    let hitTestSource = null;
+    let hitTestSourceRequested = false;
+    renderer.xr.addEventListener('sessionstart', async () => {
+      const session = renderer.xr.getSession();
+      const viewerReferenceSpace = await session.requestReferenceSpace('viewer');
+      hitTestSource = await session.requestHitTestSource({ space: viewerReferenceSpace });
+      hitTestSourceRequested = true;
+      // Set initial group position
+      group.position.set(0, 0, -2); // Start 2m in front of camera
+      scene.add(group);
+      console.log('WebXR session started with hit-test');
+    });
+
+    // Camera animation
+    const clock = new THREE.Clock();
+    let cameraAnimationStart = null;
+    const animate = () => {
+      const delta = clock.getDelta();
+      if (hitTestSourceRequested && hitTestSource) {
+        const session = renderer.xr.getSession();
+        if (session) {
+          const frame = renderer.xr.getFrame();
+          const hitTestResults = frame.getHitTestResults(hitTestSource);
+          if (hitTestResults.length > 0) {
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(renderer.xr.getReferenceSpace());
+            group.position.setFromMatrixPosition(new THREE.Matrix4().fromArray(pose.transform.matrix));
+          }
+        }
+      }
+      // Camera animation
+      if (cameraAnimationStart === null) {
+        cameraAnimationStart = clock.getElapsedTime();
+      }
+      const elapsed = clock.getElapsedTime() - cameraAnimationStart;
+      const animationDuration = 5; // 5 seconds
+      if (elapsed < animationDuration) {
+        const t = elapsed / animationDuration;
+        group.position.z = -2 - (5 - 2) * t; // Move from -2 to -5
+      } else {
+        group.position.z = -5; // Final position
+      }
+      renderer.render(scene, camera);
+    };
+
+    // WebXR render loop
+    renderer.setAnimationLoop(() => {
+      animate();
+    });
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
